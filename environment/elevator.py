@@ -98,6 +98,7 @@ class Elevator():
         self.building.trigger_epoch_event("ElevatorArrival_{}".format(self.id))
 
     def action_event(self, action):
+        #print(f"Elevator currently at floor {self.floor}")
         if action == 6:
             self.idling_event = self.building.simenv.process(self.actions[action]())
             try:
@@ -106,7 +107,8 @@ class Elevator():
                 self.building.trigger_epoch_event("ElevatorArrival_{}".format(self.id))
 
         else:
-            yield self.building.simenv.process(self.ACTION_FUNCTION_MAP[action]())
+          #  print(f"My action {action}")
+            yield self.building.simenv.process(self.actions[action]())
     def _update_floor(self):
         self.floor += self.state
         for i in self.passengers:
@@ -153,7 +155,7 @@ class Elevator():
 
         yield self.building.simenv.timeout(self.stop_time)
         self._update_floor()
-        self.building.simenv.trigger_epoch_event("ElevatorArrival_{}".format(self.id))
+        self.building.trigger_epoch_event("ElevatorArrival_{}".format(self.id))
 
     def _idle_down_step(self):
         # move down by 1
@@ -201,7 +203,7 @@ class Elevator():
                     # note that for _move_move, you must move up at least 2 floors before stopping
                     legal.update([2, 3])
                     # If almost at the top, you have to stop at the next floor up
-                    if self.floor == self.building.simenv.floors - 1:
+                    if self.floor == self.building.floors - 1:
                         legal.remove(2)
                 elif self.intent == self.INTENT_DOWN:
                     legal.update([4, 5])
@@ -216,9 +218,12 @@ class Elevator():
                 legal.remove(0)
             if self.floor == 2 and self.state==self.MOVE_DOWN:
                 legal.remove(0)
+      #  if (9 in legal and 0!=len(self.building.active_passengers)):
+       #     legal.remove(9)
         return legal
 
     def unload_passengers(self, floor, building):
+        #print('Huh, it actually works')
         people = [p for p in self.passengers]
         time_waited = 0.0
 
@@ -231,6 +236,8 @@ class Elevator():
                 building.active_passengers.remove(p)
                 building.number_successful_passengers += 1
                 self.current_capacity -= 1
+                time_waited += self.building.now() - p.arrival_time
+        return time_waited
 
 
     def load_person(self, person):
@@ -264,8 +271,9 @@ class Elevator():
             ) for state in elevator_states
         ])
 
-        requested_calls = [False] * self.building.floors
+        requested_calls = [False] * (self.building.floors+1)
         for fl in self.dest_floors:
+            #print(fl)
             requested_calls[fl] = True
         time_elapsed = [self.building.now()-self.last_decision_epoch]
         state_representation = np.concatenate([

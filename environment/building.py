@@ -36,20 +36,24 @@ class Building():
         self.number_successful_passengers = 0
         self.cost = 0
         self.elevators = [Elevator(self, id, self.floors) for id in range(self.nelevators)]
-
+        self.total_time = 0.0
         self.reset()
 
 
-    def step(self, actions):
-        for idx, a in enumerate(actions):
+    def step(self, actions ):
+        for idx,a in enumerate(actions):
             if a == -1:
                 continue
-            self.simenv.process(self.elevators[self.elevators[idx]].act(a))
+            #print(f'Action processed {a}')
+            self.simenv.process(self.elevators[idx].action_event(a))
 
         while True:
             self.decision_elevators = []
+
+            #print(self.epoch_events)
             finished_events = self.simenv.run(until=AnyOf(self.simenv, self.epoch_events.values())).events
-            self._calculate_reward()
+            rewards = self._calculate_reward()
+
             # There can be multiple events finished (when passenger arrives and multiple elevators go into decision mode)
 
             # Here is where we process the events
@@ -64,6 +68,7 @@ class Building():
                     decision = False
 
                 elif "LoadingFinished" in event_type:
+
                     self.decision_elevators.append(int(event_type.split('_')[-1]))
                     decision = True
                 elif 'ElevatorArrival' in event_type:
@@ -74,7 +79,7 @@ class Building():
               #  print('broken')
                 break
 
-        return [self.elevators[idx].get_states(True) for idx in range (self.nelevators)], self.get_cost(),self.decision_elevators
+        return [self.elevators[idx].get_states(True) for idx in range (self.nelevators)], rewards, self.decision_elevators
 
     def now(self):
         return self.simenv.now
@@ -104,18 +109,28 @@ class Building():
         return self.step([-1])
 
     def _reward_function(self, time_taken):
+
         return time_taken ** 2
 
     def _calculate_reward(self):
-        self.cost = 0.0
+
+        rewards = np.zeros(len(self.elevators))
+        ppl_at_floor = 0
         for floor in self.people_at_floor:
             for person in floor:
-                self.cost += self._reward_function(self.simenv.now - person.arrival_time)
+                rewards -= self._reward_function(self.simenv.now - person.arrival_time)
+                ppl_at_floor+=1
 
-        for ele in self.elevators:
+        for c,ele in enumerate(self.elevators):
+            ppl_in_ele = 0
+
             for person in ele.passengers:
-                self.cost += self._reward_function(self.simenv.now - person.arrival_time)
+                rewards[c] -= self._reward_function(self.simenv.now - person.arrival_time)
+                ppl_in_ele+=1
+            if (ppl_in_ele + ppl_at_floor !=0):
+                rewards[c] /= (ppl_in_ele + ppl_at_floor)
 
+        return rewards
 
     def take_elevator(self, floors, lobby_weighting = .85):
         """
@@ -156,7 +171,7 @@ class Building():
     def loading_event(self, elevator):
         # print(elevator)
         cur_floor = elevator.floor
-        self.cost += elevator.unload_passengers(cur_floor, self)
+        self.total_time += elevator.unload_passengers(cur_floor, self)
         loaded = 0
         ppl = [p for p in self.people_at_floor[cur_floor]]
         for person in ppl:
