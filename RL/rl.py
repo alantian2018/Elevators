@@ -94,7 +94,7 @@ while sim_hours * 3600 >= building.now():
             print(f'Average waited time: {building.total_time / building.number_successful_passengers}')
             time_graph.append(building.total_time / building.number_successful_passengers)
         print(f"Total ppl waiting: {len(building.active_passengers)}")
-        print(f"??? {legal_actions_list} floor {building.elevators[agent].floor}")
+        print(f"Legal actions: {legal_actions_list}. Current floor: {building.elevators[agent].floor}")
         print('\n\n')
         last_checkpoint_time = building.now()
 
